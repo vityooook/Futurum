@@ -38,7 +38,7 @@ async function run(
     tuple.writeNumber(collection.index);
     const result = await client.runMethod(Address.parse("kQAfFncTLrS65MHNfbobl8klH3qszJ2MxQ2_PjqlWuOvH2p2"), "get_nft_address_by_index", tuple.build())
     console.log(result.stack.readAddress())
-    
+
 
     const wallet = client.open(HighloadWallet.createFromAddress(highload_wallet)); // input highload wallet address
     const walletKeyPair = keyPairFromSecretKey(Buffer.from(secretKeyHex, 'hex'));
@@ -105,11 +105,11 @@ async function run(
     });
     
 
-    const queryHandler = HighloadQueryId.fromShiftAndBitNumber(0n, 9n); // save to db 
-    const query = queryHandler.getNext()
+    const queryHandler = HighloadQueryId.fromShiftAndBitNumber(0n, 0n); // save to db 
+    const query = queryHandler.getNext();
 
     const subwalletId = 0;
-    const timeout = 2 * 60 * 60; // 2 hours 
+    const timeout = 2 * 60 * 60; // 2 hours
     const createdAt = Math.floor(Date.now() / 1000) - 60; // LiteServers have some delay in time
     await wallet.sendBatch(
         walletKeyPair.secretKey,
@@ -125,7 +125,7 @@ run(
     Address.parse("0QBTntndDitJzeAQ2S-lUHu3nB5534-J_1V3RTetWK0etLjz"),
     {
         address: Address.parse("kQA95AtAgKqGRiClI_T2JL2_DK2h-s2fFx85YukTjRnOl8UI"),
-        amount: 11 * 10 ** 6 
+        amount: 1 * 10 ** 6 
     },
     {
         address: Address.parse("0QAFyfwn13L8oi30vdWBV41zFaHzCa6mJpVEjCeaDUAqmGcO"),
