@@ -1,13 +1,14 @@
 import { TonClient } from "@ton/ton";
-import { Address, beginCell, toNano } from '@ton/core';
+import { Address, beginCell } from '@ton/core';
 import { sign, keyPairFromSecretKey } from "@ton/crypto";
 import { HighloadQueryId } from '../wrappers/HighloadQueryId';
 
+const maxShift = (1 << 13) - 1;
 
 const client = new TonClient({
     endpoint: "https://testnet.toncenter.com/api/v2/jsonRPC",
     apiKey: "b2f5b5d58f553b4f9f29e6a3ae7def64682b1c6c8ef2a6eb0858538027c67122" // you can get an api key from @tonapibot bot in Telegram
-  });
+});
 
 async function run() {
 
@@ -17,22 +18,13 @@ async function run() {
 
     const messageCell = beginCell()
         .storeUint(0x18, 6)
-        .storeAddress(Address.parse("kQA95AtAgKqGRiClI_T2JL2_DK2h-s2fFx85YukTjRnOl8UI"))
-        .storeCoins(toNano("0.1"))
-        .storeUint(1, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-        .storeRef(beginCell()
-        .storeUint(0xf8a7ea5, 32)
+        .storeAddress(Address.parse("0QAFyfwn13L8oi30vdWBV41zFaHzCa6mJpVEjCeaDUAqmGcO"))
+        .storeCoins(1000000)
+        .storeUint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .storeUint(0, 32)
         .storeUint(0, 64)
-        .storeCoins(1 * 10 ** 6) // 100 USDT
-        .storeAddress(Address.parse("0QAFyfwn13L8oi30vdWBV41zFaHzCa6mJpVEjCeaDUAqmGcO"))
-        .storeAddress(Address.parse("0QAFyfwn13L8oi30vdWBV41zFaHzCa6mJpVEjCeaDUAqmGcO"))
-        .storeBit(0)
-        .storeCoins(1)
-        .storeBit(1)
-        .storeRef(beginCell().storeUint(0, 32).storeStringTail("yraaaaa").endCell())
-        .endCell())
-      .endCell();
-    // 0QAFyfwn13L8oi30vdWBV41zFaHzCa6mJpVEjCeaDUAqmGcO
+      .endCell()
+
     const queryId = HighloadQueryId.fromShiftAndBitNumber(0n, 0n);
     // Шаг 1: Создаем messageInner и body
     const messageInner = beginCell()
@@ -40,8 +32,7 @@ async function run() {
     .storeRef(messageCell)
     .storeUint(1, 8)
     .storeUint(queryId.getBitNumber(), 13)
-    // .storeUint(queryId.getShift(), 10)
-    .storeUint(7, 10)
+    .storeUint(queryId.getShift(), 10)
     .storeUint(Math.floor(Date.now() / 1000) - 10, 64)
     .storeUint(2 * 60 * 60, 22)
     .endCell();
@@ -49,8 +40,8 @@ async function run() {
     const signature = sign(messageInner.hash(), restoredKeyPair.secretKey);
 
     const body = beginCell()
-      .storeBuffer(signature)
-      .storeRef(messageInner)
+    .storeBuffer(signature)
+    .storeRef(messageInner)
     .endCell();
 
 
@@ -66,7 +57,7 @@ async function run() {
 
 
     // console.log(message)
-    client.sendFile(message.toBoc()).catch()
+    client.sendFile(message.toBoc())
     // Шаг 4: Сериализуем сообщение в BoC
     
 

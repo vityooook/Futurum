@@ -2,7 +2,7 @@
 
 global slice target_address;
 global int commission;
-global int hash;
+global slice hash;
 
 const op::transfer_notification = 0x7362d09c;
 const op::transfer = 0xf8a7ea5;
@@ -11,7 +11,7 @@ const op::transfer = 0xf8a7ea5;
     slice ds = get_data().begin_parse();
     target_address = ds~load_msg_addr();
     commission = ds~load_coins();
-    hash = ds~load_uint(256);
+    hash = ds~load_bits(256);
 }
 
 () send_msg(slice to_address, int amount, cell payload, int send_mode) impure inline {
@@ -68,7 +68,26 @@ const op::transfer = 0xf8a7ea5;
         send_msg(sender_address, 0, payload, 128);
         return ();
 
-        ;; нужно дописать метод вывода  для безопасности 
+    }
+
+    if (op == 1) {
+        throw_unless(402, equal_slices(sender_address, target_address));
+        slice to = in_msg_body~load_msg_addr();
+        int amount_jetton = in_msg_body~load_coins();
+        slice jetton_wallet_address = in_msg_body~load_msg_addr();
+
+        var msg_payload = begin_cell()
+        .store_uint(op::transfer, 32) ;; transfer
+        .store_uint(0, 64)
+        .store_coins(amount_jetton)
+        .store_slice(to)
+        .store_slice(to)
+        .store_int(0, 1)
+        .store_coins(1)
+        .store_uint(0, 1)
+        .end_cell();
+
+        send_msg(jetton_wallet_address, 40000000, msg_payload, 3);
     }
     throw(0xffff);
 }
