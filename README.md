@@ -1,38 +1,24 @@
-
+Поскольку времени в обрез, я решил всё упростить и убрать контракт брокера. Пользователь будет отправлять деньги напрямую на наш кошелёк; затем мы проверим, что он прислал, и сразу же выполним необходимые действия:
 
 ### Примерная архитектура взаимодействия фронтенда и бэкенда с блокчейном
+![Диаграмма архитектуры](architecture-diagram.png)
+#### Этап 1: Оплата
 
-#### Этап 1: Оплата и деплой контракта
+Пользователь выбирает товар и переходит в корзину, где у него подключён кошелёк. После нажатия кнопки "Оплатить" на фронтенде формируется транзакция с помощью библиотеки [ton-connect/ui](https://www.npmjs.com/package/@tonconnect/ui). Пользователь подпишет транзакцию для перевода USDT (или другого jetton) напрямую на наш кошелёк.
 
-Пользователь выбирает товар и переходит в корзину, где у него подключен кошелек. После нажатия кнопки "Оплатить" на фронте формируется транзакция с помощью библиотеки [ton-connect/ui](https://www.npmjs.com/package/@tonconnect/ui). Пользователь будет подписывать одновременно две транзакции:
+##### Детализация транзакции:
 
-1. Первая транзакция: деплой контракта Broker.
-2. Вторая транзакция: перевод USDT (или другого jetton) на контракт Broker.
+Для перевода jetton (USDT) на наш кошелёк используется функция [jettonTransaction](https://github.com/vityooook/Futurum/blob/main/api/BrokerContract.ts). Необходимые параметры:
 
-##### Детализация транзакций:
+- `amount` — количество jetton, которое переводится;
+- `destinationAddress` — адрес нашего кошелька;
+- `responsAddress` — адрес покупателя, на который вернётся остаток после комиссий;
+- `forwardFee` — комиссия, которая будет отправлена нашему кошельку.
 
-- Первая транзакция (деплой контракта Broker):  
-  Для деплоя контракта вызывается функция [createBroker](https://github.com/vityooook/Futurum/blob/main/api/BrokerContract.ts), в которую передаются два параметра:
-    - highload_wallet_address (адрес технического кошелька),
-    - commission (0.2 TON).  
-
-  Функция возвращает:
-    - BrokerAddress (адрес контракта),
-    - StateInitBase64 (инициализация контракта в base64 формате).
-
-Эти параметры передаются в tonconnect.
-
-- Вторая транзакция (перевод USDT на Broker):  
-  Для перевода jetton (USDT) на контракт Broker, вызывается функция [jettonTransaction](https://github.com/vityooook/Futurum/blob/main/api/BrokerContract.ts). Необходимые параметры:
-    - amount — количество jetton, которое переводится,
-    - destinationAddress — адрес контракта Broker,
-    - responsAddress — адрес покупателя, на который вернется остаток после комиссий,
-    - forwardFee — комиссия, которая будет отправлена нашему кошельку.
-
-##### Пример оформления транзакций:
+##### Пример оформления транзакции:
 
 ```javascript
-// Получаем адрес кошелька покупателя для jetton:
+// Получаем адрес jetton-кошелька покупателя:
 const response = await args.client.runMethod(JettonMasterAddress, "get_wallet_address", [{
   type: 'slice',
   cell: beginCell().storeAddress(BuyerWalletAddress).endCell()
@@ -40,29 +26,21 @@ const response = await args.client.runMethod(JettonMasterAddress, "get_wallet_ad
 
 const JettonWalletBuyer = response.stack.readAddress();
 
-// Деплой broker контракта:
-const [BrokerAddress, StateInitBase64] = createBroker({ highload_wallet_address: Address.parse("") });
-
-// Создаем payload для транзакции jetton:
+// Создаём payload для транзакции jetton:
 const payload = jettonTransaction({
-  amount: ...,
-  destinationAddress: BrokerAddress,
+  amount: ..., // сколько пользователь должен отправить USDT
+  destinationAddress: OurWalletAddress,
   responsAddress: BuyerWalletAddress,
-  forwardFee: ...
+  forwardFee: toNano("0.2")
 });
 
 // Формируем транзакцию:
 const transaction = {
   validUntil: Math.floor(Date.now() / 1000) + 60, // Время валидности 60 сек
   messages: [
-    { // Деплой broker
-      address: BrokerAddress,
-      amount: "1000000", // Сумма деплоя (пример)
-      stateInit: StateInitBase64
-    },
-    { // Перевод USDT на broker
+    { // Перевод USDT на наш кошелёк
       address: JettonWalletBuyer,
-      amount: "60000000", // Сумма перевода USDT
+      amount: "250000000", // Сумма перевода TON для оплаты комиссии 
       payload: payload
     }
   ]
@@ -71,24 +49,24 @@ const transaction = {
 
 #### Этап 2: Проверка транзакции
 
-После подтверждения транзакции пользователем, ton-connect возвращает результат. С фронтенда необходимо отправить запрос на бекенд для проверки успешности перевода USDT. Это можно сделать с помощью API запроса: https://toncenter.com/api/v2/#/accounts/get_transactions_getTransactions_get.
+После подтверждения транзакции пользователем ton-connect нам возращает потверждеие. затем мы на фронте делаем провеку, что деньги дошли до кошелька с помощью следующего метада https://tonapi.io//api-v2 (/v2/accounts/{account_id}/events)
 
-*Примечание*: Детали по проверке транзакции требуют дополнительного исследования, этот шаг пока можно пропустить.
+#### Этап 3: Финальные действия и деплой NFT
 
-#### Этап 3: Финальные транзакции и деплой NFT
+Убедившись, что USDT поступили на наш кошелёк, через 2–3 минуты нужно выполнить следующие действия:
 
-Когда убедились, что USDT поступили на контракт, через 2-3 минуты нужно инициировать следующие транзакции:
 1. Деплой NFT.
 2. Перевод USDT продавцу.
 3. Перевод реферальной комиссии (если есть).
 
 ##### Хранение данных о NFT:
 
-Для деплоя NFT необходимо хранить в базе данных следующую информацию:
-- nft_index — уникальный индекс NFT,
-- nft_address — адрес NFT,
-- seller — кто продал товар,
-- item_metadata — метаданные товара. Пример формата метаданных можно увидеть здесь:  
-  https://s.getgems.io/nft/c/65f1941c8d4e725b494dd4b2/2000003/meta.json.
+Для деплоя NFT необходимо сохранить в базе данных следующую информацию:
 
-Для обсуждения всех деталей необходимо созвониться и уточнить моменты, касающиеся структуры базы данных и работы с коллекциями.
+- `nft_index` — уникальный индекс NFT;
+- `nft_address` — адрес NFT;
+- `seller` — продавец товара;
+- `item_metadata` — метаданные товара. Пример формата метаданных можно увидеть здесь:  
+  [Пример метаданных](https://s.getgems.io/nft/c/65f1941c8d4e725b494dd4b2/2000003/meta.json).
+
+Чтобы обсудить все детали, необходимо созвониться и уточнить моменты, касающиеся структуры базы данных и работы с коллекциями.
